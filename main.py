@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import sqlite3
 from datetime import datetime
 import hashlib
-import re   # ← This was missing, causing the crash
+import re
 
 app = FastAPI(title="Helix Debugger")
 
@@ -79,7 +79,7 @@ class HelixDebugger:
 debugger = HelixDebugger()
 
 # ========================
-# Professional UI with PayPal Integration
+# Professional UI
 # ========================
 
 @app.get("/", response_class=HTMLResponse)
@@ -128,7 +128,6 @@ async def upgrade_page():
             <p class="text-center text-zinc-400 mb-12">Unlock unlimited power for your game servers</p>
             
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Pro Tier -->
                 <div class="bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-700">
                     <h3 class="text-2xl font-semibold mb-2">Pro</h3>
                     <p class="text-5xl font-bold mb-6">$49 <span class="text-sm font-normal text-zinc-400">/ month</span></p>
@@ -140,7 +139,6 @@ async def upgrade_page():
                     <a href="https://paypal.me/DaphneJaneGarrido/49" target="_blank" class="block w-full py-4 bg-cyan-400 text-black font-semibold rounded-3xl">Pay with PayPal • $49/mo</a>
                 </div>
 
-                <!-- Studio Tier (Featured) -->
                 <div class="bg-zinc-900 rounded-3xl p-8 text-center border border-cyan-400 scale-105 shadow-2xl">
                     <div class="bg-cyan-400 text-black text-xs font-bold px-4 py-1 rounded-full inline-block mb-4">MOST POPULAR</div>
                     <h3 class="text-2xl font-semibold mb-2">Studio</h3>
@@ -154,7 +152,6 @@ async def upgrade_page():
                     <a href="https://paypal.me/DaphneJaneGarrido/199" target="_blank" class="block w-full py-4 bg-cyan-400 text-black font-semibold rounded-3xl">Pay with PayPal • $199/mo</a>
                 </div>
 
-                <!-- Enterprise -->
                 <div class="bg-zinc-900 rounded-3xl p-8 text-center border border-zinc-700">
                     <h3 class="text-2xl font-semibold mb-2">Enterprise</h3>
                     <p class="text-5xl font-bold mb-6">Custom</p>
@@ -170,7 +167,7 @@ async def upgrade_page():
     </body></html>
     """)
 
-# Login, Register, Dashboard, Analyze, and other pages are included in the full version.
+# Login, Register, Dashboard, Analyze, Profile routes are fully included in the complete version.
 # For brevity in this response, the full code with all routes is available if needed.
 
 if __name__ == "__main__":
