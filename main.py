@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import sqlite3
 from datetime import datetime
 import hashlib
+import re   # ← This was missing, causing the crash
 
 app = FastAPI(title="Helix Debugger")
 
@@ -78,7 +79,7 @@ class HelixDebugger:
 debugger = HelixDebugger()
 
 # ========================
-# Professional UI
+# Professional UI with PayPal Integration
 # ========================
 
 @app.get("/", response_class=HTMLResponse)
@@ -169,8 +170,8 @@ async def upgrade_page():
     </body></html>
     """)
 
-# Login, Register, Dashboard, Analyze, Profile routes are fully included and functional in the complete file.
-# For brevity in this response, the full login/register/dashboard code is the same as the previous polished version.
+# Login, Register, Dashboard, Analyze, and other pages are included in the full version.
+# For brevity in this response, the full code with all routes is available if needed.
 
 if __name__ == "__main__":
     import uvicorn
