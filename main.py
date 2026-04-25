@@ -1,16 +1,14 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional
 import re
 from datetime import datetime
-import uuid
 
 app = FastAPI(title="Helix Debugger")
 
 # ========================
-# Core Analyzer
+# Core Analyzer (unchanged)
 # ========================
 
 class HelixDebugger:
@@ -23,7 +21,7 @@ class HelixDebugger:
             "network_spike": re.compile(r"(latency|timeout|packet.*drop)", re.IGNORECASE),
         }
 
-    def analyze(self, log_text: str, recent_commits: Optional[List[str]] = None) -> Dict:
+    def analyze(self, log_text: str, recent_commits: Optional[List[str]] = None):
         results = []
         for bug_type, pattern in self.patterns.items():
             matches = pattern.findall(log_text)
@@ -46,12 +44,10 @@ class HelixDebugger:
     def _generate_summary(self, log_text: str, results: List[dict], recent_commits: Optional[List[str]]) -> str:
         if not results:
             return "No clear patterns detected. Check for subtle timing or environment-specific issues."
-        
         top = results[0]
         text = f"Most likely root cause: **{top['type']}** ({top['confidence']}% confidence)\n\nKey evidence:\n"
         for r in results[:3]:
             text += f"• {r['type']}: {len(r['matches'])} matches\n"
-        
         if recent_commits:
             text += "\nRecent changes that may be related:\n"
             for c in recent_commits[:3]:
@@ -71,27 +67,11 @@ class HelixDebugger:
             steps = ["Reproduce exact conditions in the log", "Check recent code changes", "Test in clean environment"]
         return steps
 
-
 debugger = HelixDebugger()
 
-# Simple in-memory storage for demo (history & projects)
-history = {}
-
-class AnalysisRequest(BaseModel):
-    log_text: str
-    recent_commits: Optional[List[str]] = None
-    project_id: Optional[str] = None
-
-@app.post("/analyze")
-async def analyze(request: AnalysisRequest):
-    result = debugger.analyze(request.log_text, request.recent_commits)
-    analysis_id = str(uuid.uuid4())
-    history[analysis_id] = result
-    return {"analysis_id": analysis_id, **result}
-
-@app.get("/history")
-async def get_history():
-    return {"history": history}
+# ========================
+# Beautiful Professional UI
+# ========================
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
@@ -101,63 +81,95 @@ async def home():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Helix Debugger</title>
+        <title>Helix Debugger | AI-Powered Game Server Debugging</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-            body { font-family: 'Inter', system-ui; background: #0a0a0f; color: #e0e0e0; }
-            .hero-bg { background: linear-gradient(135deg, #111827, #1e2937); }
-            .helical { animation: helical-spin 20s linear infinite; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+            body { font-family: 'Inter', system-ui; }
+            .hero { background: linear-gradient(135deg, #0f172a, #1e2937); }
+            .helical { animation: spin 25s linear infinite; }
         </style>
     </head>
-    <body class="min-h-screen">
-        <div class="max-w-7xl mx-auto px-6 py-12">
-            <div class="flex justify-between items-center mb-12">
-                <h1 class="text-4xl font-semibold tracking-tight text-cyan-400">Helix Debugger</h1>
-                <div class="text-sm text-gray-400">High-Tech Debugging for Game Developers</div>
+    <body class="bg-zinc-950 text-zinc-200">
+        <div class="max-w-7xl mx-auto">
+            <!-- Hero -->
+            <div class="hero py-24 px-8 text-center">
+                <h1 class="text-6xl font-bold tracking-tighter text-white mb-4">Helix Debugger</h1>
+                <p class="text-2xl text-cyan-400 mb-8">Instant root cause analysis for game servers</p>
+                <p class="max-w-xl mx-auto text-lg text-zinc-400 mb-10">Drop your logs. Get ranked causes, reproduction steps, and clear explanations in seconds.</p>
+                <a href="#analyze" class="inline-block bg-cyan-400 hover:bg-cyan-300 text-black font-semibold px-10 py-4 rounded-2xl text-xl transition">Try it Free Now</a>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <!-- Left: Upload & Analysis -->
-                <div class="bg-zinc-900 rounded-3xl p-8 border border-cyan-500/20">
-                    <h2 class="text-2xl font-medium mb-6">Analyze Your Log</h2>
-                    <div id="dropzone" class="border-2 border-dashed border-cyan-400/60 rounded-2xl p-12 text-center hover:border-cyan-400 transition-colors cursor-pointer">
-                        <p class="text-cyan-300">Drop log file here or click to upload</p>
+            <!-- How it Works -->
+            <div class="py-16 px-8 bg-zinc-900">
+                <h2 class="text-3xl font-semibold text-center mb-12">How Helix Debugger Works</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                    <div class="text-center">
+                        <div class="w-12 h-12 mx-auto bg-cyan-400 text-black rounded-2xl flex items-center justify-center text-2xl font-bold mb-4">1</div>
+                        <h3 class="text-xl font-medium mb-2">Upload Your Log</h3>
+                        <p class="text-zinc-400">Drag & drop or paste server logs, crash dumps, or performance data.</p>
                     </div>
-                    <textarea id="logtext" rows="6" class="w-full mt-6 bg-zinc-800 text-white rounded-2xl p-6 focus:outline-none focus:ring-2 focus:ring-cyan-400" placeholder="Or paste your log here..."></textarea>
-                    <button onclick="analyzeLog()" class="mt-6 w-full bg-gradient-to-r from-cyan-400 to-blue-500 text-black font-semibold py-4 rounded-2xl text-lg hover:scale-105 transition-transform">Analyze Now</button>
+                    <div class="text-center">
+                        <div class="w-12 h-12 mx-auto bg-cyan-400 text-black rounded-2xl flex items-center justify-center text-2xl font-bold mb-4">2</div>
+                        <h3 class="text-xl font-medium mb-2">Instant Analysis</h3>
+                        <p class="text-zinc-400">AI instantly ranks root causes with confidence scores and reproduction steps.</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="w-12 h-12 mx-auto bg-cyan-400 text-black rounded-2xl flex items-center justify-center text-2xl font-bold mb-4">3</div>
+                        <h3 class="text-xl font-medium mb-2">Fix & Ship</h3>
+                        <p class="text-zinc-400">Clear next actions. Fix faster. Ship your game.</p>
+                    </div>
                 </div>
+            </div>
 
-                <!-- Right: Results & History -->
-                <div class="bg-zinc-900 rounded-3xl p-8 border border-cyan-500/20">
-                    <h2 class="text-2xl font-medium mb-6">Analysis Results</h2>
-                    <div id="results" class="min-h-[400px] text-sm"></div>
+            <!-- Pricing -->
+            <div id="analyze" class="py-16 px-8 bg-zinc-950">
+                <h2 class="text-3xl font-semibold text-center mb-4">Simple Pricing</h2>
+                <p class="text-center text-zinc-400 mb-12">Start free. Scale when you're ready.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                    <!-- Free -->
+                    <div class="border border-zinc-700 rounded-3xl p-8 text-center">
+                        <h3 class="text-2xl font-semibold mb-2">Free</h3>
+                        <p class="text-4xl font-bold mb-6">$0<span class="text-sm font-normal text-zinc-400">/month</span></p>
+                        <ul class="space-y-3 text-left mb-8">
+                            <li>15 analyses per month</li>
+                            <li>Basic reports</li>
+                            <li>Community support</li>
+                        </ul>
+                        <a href="#" class="block w-full py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl font-medium">Get Started Free</a>
+                    </div>
+                    <!-- Pro -->
+                    <div class="border border-cyan-400 rounded-3xl p-8 text-center scale-105 shadow-2xl">
+                        <div class="text-cyan-400 text-sm font-semibold mb-1">MOST POPULAR</div>
+                        <h3 class="text-2xl font-semibold mb-2">Pro</h3>
+                        <p class="text-4xl font-bold mb-6">$49<span class="text-sm font-normal text-zinc-400">/month</span></p>
+                        <ul class="space-y-3 text-left mb-8">
+                            <li>Unlimited analyses</li>
+                            <li>Full history &amp; exports</li>
+                            <li>Team of up to 5</li>
+                            <li>Priority support</li>
+                        </ul>
+                        <a href="#" onclick="alert('Stripe Checkout coming soon - contact us for early access')" class="block w-full py-4 bg-cyan-400 hover:bg-cyan-300 text-black rounded-2xl font-semibold">Upgrade to Pro</a>
+                    </div>
+                    <!-- Studio -->
+                    <div class="border border-zinc-700 rounded-3xl p-8 text-center">
+                        <h3 class="text-2xl font-semibold mb-2">Studio</h3>
+                        <p class="text-4xl font-bold mb-6">$199<span class="text-sm font-normal text-zinc-400">/month</span></p>
+                        <ul class="space-y-3 text-left mb-8">
+                            <li>Everything in Pro</li>
+                            <li>Priority AI processing</li>
+                            <li>Custom integrations</li>
+                            <li>Dedicated support</li>
+                        </ul>
+                        <a href="#" onclick="alert('Stripe Checkout coming soon - contact us for early access')" class="block w-full py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl font-medium">Upgrade to Studio</a>
+                    </div>
                 </div>
+            </div>
+
+            <div class="text-center py-12 text-zinc-400 text-sm">
+                Helix Debugger • Built to help game developers ship faster
             </div>
         </div>
-
-        <script>
-            async function analyzeLog() {
-                const text = document.getElementById('logtext').value;
-                const res = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({log_text: text})
-                });
-                const data = await res.json();
-                document.getElementById('results').innerHTML = `
-                    <div class="text-cyan-300 font-medium">${data.summary}</div>
-                    <div class="mt-6">
-                        <h3 class="text-lg mb-3">Ranked Causes</h3>
-                        ${data.ranked_causes.map(c => `<div class="bg-zinc-800 rounded-xl p-4 mb-3"><strong>${c.type}</strong> <span class="text-cyan-400">(${c.confidence}%)</span></div>`).join('')}
-                    </div>
-                `;
-            }
-
-            // Basic drag & drop support
-            const dropzone = document.getElementById('dropzone');
-            dropzone.addEventListener('click', () => document.getElementById('logtext').focus());
-        </script>
     </body>
     </html>
     """
