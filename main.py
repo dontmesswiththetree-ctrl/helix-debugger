@@ -1,10 +1,8 @@
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 import hashlib
 import sqlite3
 import re
-from datetime import datetime
 
 app = FastAPI()
 
@@ -19,7 +17,7 @@ def init_db():
 
 init_db()
 
-# Simple in-memory session (for Render free tier)
+# In-memory sessions (simple for Render free tier)
 sessions = {}
 
 def hash_password(password):
@@ -51,19 +49,13 @@ async def home():
     return """
     <!DOCTYPE html>
     <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Helix Debugger</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-    </head>
+    <head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center">
-        <div class="max-w-md w-full mx-4 bg-zinc-900 rounded-3xl p-8">
-            <h1 class="text-4xl font-bold text-cyan-400 text-center mb-2">Helix Debugger</h1>
-            <p class="text-center text-zinc-400 mb-8">AI Log Analyzer for Game Servers</p>
-            
-            <a href="/login" class="block w-full text-center bg-cyan-500 hover:bg-cyan-600 py-4 rounded-3xl font-semibold text-xl mb-4">Login</a>
-            <a href="/register" class="block w-full text-center bg-zinc-800 hover:bg-zinc-700 py-4 rounded-3xl font-semibold text-xl">Create Account</a>
+        <div class="max-w-md w-full mx-4 bg-zinc-900 rounded-3xl p-8 text-center">
+            <h1 class="text-4xl font-bold text-cyan-400 mb-2">Helix Debugger</h1>
+            <p class="text-zinc-400 mb-8">AI Log Analyzer for Game Servers</p>
+            <a href="/login" class="block w-full bg-cyan-500 hover:bg-cyan-600 py-4 rounded-3xl font-semibold text-xl mb-4">Login</a>
+            <a href="/register" class="block w-full bg-zinc-800 hover:bg-zinc-700 py-4 rounded-3xl font-semibold text-xl">Create Account</a>
         </div>
     </body>
     </html>
@@ -74,8 +66,8 @@ async def login_page():
     return """
     <!DOCTYPE html>
     <html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-zinc-950 text-white">
-        <div class="max-w-md mx-auto mt-20 bg-zinc-900 rounded-3xl p-8">
+    <body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center">
+        <div class="max-w-md mx-auto bg-zinc-900 rounded-3xl p-8">
             <h1 class="text-3xl font-bold text-cyan-400 mb-6 text-center">Login</h1>
             <form action="/login" method="post">
                 <input name="username" placeholder="Username" class="w-full bg-zinc-800 p-4 rounded-2xl mb-4" required>
@@ -98,17 +90,17 @@ async def login_post(username: str = Form(...), password: str = Form(...)):
     if result and result[0] == hash_password(password):
         sessions[username] = True
         response = RedirectResponse("/dashboard", status_code=303)
-        response.set_cookie(key="user", value=username)
+        response.set_cookie(key="user", value=username, httponly=True)
         return response
-    return HTMLResponse("Invalid credentials", status_code=401)
+    return HTMLResponse("Invalid username or password", status_code=401)
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page():
     return """
     <!DOCTYPE html>
     <html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
-    <body class="bg-zinc-950 text-white">
-        <div class="max-w-md mx-auto mt-20 bg-zinc-900 rounded-3xl p-8">
+    <body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center">
+        <div class="max-w-md mx-auto bg-zinc-900 rounded-3xl p-8">
             <h1 class="text-3xl font-bold text-cyan-400 mb-6 text-center">Create Account</h1>
             <form action="/register" method="post">
                 <input name="username" placeholder="Username" class="w-full bg-zinc-800 p-4 rounded-2xl mb-4" required>
@@ -124,13 +116,14 @@ async def register_post(username: str = Form(...), password: str = Form(...)):
     conn = sqlite3.connect("users.db")
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO users (username, password, trials) VALUES (?, ?, 12)", (username, hash_password(password)))
+        c.execute("INSERT INTO users (username, password, trials) VALUES (?, ?, 12)", 
+                  (username, hash_password(password)))
         conn.commit()
         sessions[username] = True
         response = RedirectResponse("/dashboard", status_code=303)
-        response.set_cookie(key="user", value=username)
+        response.set_cookie(key="user", value=username, httponly=True)
         return response
-    except:
+    except sqlite3.IntegrityError:
         return HTMLResponse("Username already exists", status_code=400)
     finally:
         conn.close()
@@ -144,23 +137,25 @@ async def dashboard(request: Request):
     conn = sqlite3.connect("users.db")
     c = conn.cursor()
     c.execute("SELECT trials FROM users WHERE username=?", (user,))
-    trials = c.fetchone()[0]
+    result = c.fetchone()
     conn.close()
+    trials = result[0] if result else 0
 
     return f"""
     <!DOCTYPE html>
     <html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-zinc-950 text-white">
         <div class="max-w-2xl mx-auto p-8">
-            <h1 class="text-4xl font-bold text-cyan-400 mb-2">Welcome, {user}!</h1>
+            <h1 class="text-4xl font-bold text-cyan-400 mb-2">Welcome back, {user}!</h1>
             <p class="text-zinc-400 mb-8">Trials remaining: <span class="text-3xl font-mono text-cyan-300">{trials}</span></p>
             
             <form action="/analyze" method="post" class="mb-8">
-                <textarea name="log" rows="8" placeholder="Paste your game server log here..." class="w-full bg-zinc-900 p-6 rounded-3xl"></textarea>
-                <button type="submit" class="mt-4 w-full bg-cyan-500 py-5 rounded-3xl font-semibold">Analyze Log</button>
+                <textarea name="log" rows="10" placeholder="Paste your game server log here..." 
+                          class="w-full bg-zinc-900 p-6 rounded-3xl text-white"></textarea>
+                <button type="submit" class="mt-6 w-full bg-cyan-500 py-5 rounded-3xl font-semibold text-xl">Analyze Log</button>
             </form>
             
-            <a href="/upgrade" class="block text-center bg-zinc-800 hover:bg-zinc-700 py-4 rounded-3xl">Upgrade for Unlimited Analyses</a>
+            <a href="/upgrade" class="block text-center bg-zinc-800 hover:bg-zinc-700 py-4 rounded-3xl font-semibold">Upgrade for Unlimited Analyses</a>
         </div>
     </body></html>
     """
@@ -178,7 +173,7 @@ async def analyze(request: Request, log: str = Form(...)):
     
     if trials <= 0:
         conn.close()
-        return HTMLResponse("No trials left. Please upgrade.", status_code=402)
+        return HTMLResponse("No trials remaining. Please upgrade your account.", status_code=402)
     
     # Decrement trial
     c.execute("UPDATE users SET trials = trials - 1 WHERE username=?", (user,))
@@ -186,12 +181,12 @@ async def analyze(request: Request, log: str = Form(...)):
     conn.close()
     
     results = debugger.analyze(log)
-    summary = "<br>".join([f"{k}: {v} occurrences" for k,v in results.items()]) or "No major issues detected."
+    summary = "<br>".join([f"• {k.replace('_', ' ').title()}: {v} occurrences" for k, v in results.items()]) or "No major issues detected."
     
     return f"""
-    <h1 class="text-3xl font-bold text-cyan-400">Analysis Complete</h1>
-    <p class="mt-4">{summary}</p>
-    <a href="/dashboard" class="mt-8 inline-block bg-cyan-500 px-8 py-4 rounded-3xl">Back to Dashboard</a>
+    <h1 class="text-3xl font-bold text-cyan-400 mb-4">Analysis Complete</h1>
+    <div class="bg-zinc-900 p-6 rounded-3xl text-white">{summary}</div>
+    <a href="/dashboard" class="mt-8 inline-block bg-cyan-500 px-8 py-4 rounded-3xl font-semibold">Back to Dashboard</a>
     """
 
 @app.get("/upgrade", response_class=HTMLResponse)
@@ -203,14 +198,12 @@ async def upgrade_page(request: Request):
     <!DOCTYPE html>
     <html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script></head>
     <body class="bg-zinc-950 text-white">
-        <div class="max-w-md mx-auto mt-20 bg-zinc-900 rounded-3xl p-8">
-            <h1 class="text-4xl font-bold text-cyan-400 text-center mb-8">Upgrade Helix Debugger</h1>
-            
+        <div class="max-w-md mx-auto mt-20 bg-zinc-900 rounded-3xl p-8 text-center">
+            <h1 class="text-4xl font-bold text-cyan-400 mb-8">Upgrade Helix Debugger</h1>
             <a href="https://paypal.me/DaphneJaneGarrido/49" target="_blank" 
-               class="block bg-cyan-500 hover:bg-cyan-600 py-6 rounded-3xl text-center text-2xl font-semibold mb-4">Pro - $49/month (Unlimited)</a>
-            
+               class="block bg-cyan-500 hover:bg-cyan-600 py-6 rounded-3xl text-2xl font-semibold mb-6">Pro — $49/month (Unlimited Analyses)</a>
             <a href="https://paypal.me/DaphneJaneGarrido/199" target="_blank" 
-               class="block bg-violet-500 hover:bg-violet-600 py-6 rounded-3xl text-center text-2xl font-semibold">Studio - $199/month (Team + Priority)</a>
+               class="block bg-violet-500 hover:bg-violet-600 py-6 rounded-3xl text-2xl font-semibold">Studio — $199/month (Team + Priority)</a>
         </div>
     </body></html>
     """
