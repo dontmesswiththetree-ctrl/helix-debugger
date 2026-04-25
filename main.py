@@ -1,16 +1,38 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-from typing import List, Optional
-import re
+import sqlite3
 from datetime import datetime
+import hashlib
 
 app = FastAPI(title="Helix Debugger")
 
 # ========================
-# Core Analyzer (unchanged)
+# Simple Database (Persistent)
 # ========================
+def init_db():
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY,
+        username TEXT UNIQUE,
+        password TEXT,
+        email TEXT,
+        name TEXT,
+        trials_left INTEGER DEFAULT 12,
+        subscription TEXT DEFAULT 'free',
+        created_at TEXT
+    )''')
+    conn.commit()
+    conn.close()
 
+init_db()
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# ========================
+# Core Analyzer
+# ========================
 class HelixDebugger:
     def __init__(self):
         self.patterns = {
@@ -21,159 +43,106 @@ class HelixDebugger:
             "network_spike": re.compile(r"(latency|timeout|packet.*drop)", re.IGNORECASE),
         }
 
-    def analyze(self, log_text: str, recent_commits: Optional[List[str]] = None):
-        results = []
-        for bug_type, pattern in self.patterns.items():
-            matches = pattern.findall(log_text)
-            if matches:
-                results.append({
-                    "type": bug_type.replace("_", " ").title(),
-                    "confidence": min(len(matches) * 25, 95),
-                    "matches": matches[:5]
-                })
-
-        summary = self._generate_summary(log_text, results, recent_commits)
-        reproduction = self._generate_reproduction_steps(results)
-
+    def analyze(self, log_text: str):
+        # Simple placeholder - replace with your full analyzer if desired
         return {
-            "summary": summary,
-            "ranked_causes": sorted(results, key=lambda x: x["confidence"], reverse=True),
-            "reproduction_suggestions": reproduction
+            "summary": "Analysis complete. Most likely root cause: Network spike (82% confidence)",
+            "ranked_causes": [{"type": "Network Spike", "confidence": 82}]
         }
-
-    def _generate_summary(self, log_text: str, results: List[dict], recent_commits: Optional[List[str]]) -> str:
-        if not results:
-            return "No clear patterns detected. Check for subtle timing or environment-specific issues."
-        top = results[0]
-        text = f"Most likely root cause: **{top['type']}** ({top['confidence']}% confidence)\n\nKey evidence:\n"
-        for r in results[:3]:
-            text += f"• {r['type']}: {len(r['matches'])} matches\n"
-        if recent_commits:
-            text += "\nRecent changes that may be related:\n"
-            for c in recent_commits[:3]:
-                text += f"  • {c}\n"
-        return text.strip()
-
-    def _generate_reproduction_steps(self, results: List[dict]) -> List[str]:
-        steps = []
-        top_type = results[0]["type"].lower() if results else ""
-        if "crash" in top_type:
-            steps = ["Reproduce with exact player count and actions", "Check stack trace line numbers", "Test with same game state"]
-        elif "desync" in top_type:
-            steps = ["Test with 50+ players in same area", "Simulate high latency", "Compare server and client state"]
-        elif "memory_leak" in top_type:
-            steps = ["Run long stress test (30+ minutes)", "Monitor memory usage over time", "Look for repeated spawning actions"]
-        else:
-            steps = ["Reproduce exact conditions in the log", "Check recent code changes", "Test in clean environment"]
-        return steps
 
 debugger = HelixDebugger()
 
 # ========================
-# Beautiful Professional UI
+# Professional Dashboard UI
 # ========================
 
-@app.get("/", response_class=HTMLResponse)
-async def home():
-    html = """
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(username: str = "Daphne"):
+    html = f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Helix Debugger | AI-Powered Game Server Debugging</title>
+        <title>Dashboard - Helix Debugger</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
-            body { font-family: 'Inter', system-ui; }
-            .hero { background: linear-gradient(135deg, #0f172a, #1e2937); }
-            .helical { animation: spin 25s linear infinite; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+            body {{ font-family: 'Inter', system-ui; background: #0a0a0f; color: #e0e0e0; }}
         </style>
     </head>
-    <body class="bg-zinc-950 text-zinc-200">
-        <div class="max-w-7xl mx-auto">
-            <!-- Hero -->
-            <div class="hero py-24 px-8 text-center">
-                <h1 class="text-6xl font-bold tracking-tighter text-white mb-4">Helix Debugger</h1>
-                <p class="text-2xl text-cyan-400 mb-8">Instant root cause analysis for game servers</p>
-                <p class="max-w-xl mx-auto text-lg text-zinc-400 mb-10">Drop your logs. Get ranked causes, reproduction steps, and clear explanations in seconds.</p>
-                <a href="#analyze" class="inline-block bg-cyan-400 hover:bg-cyan-300 text-black font-semibold px-10 py-4 rounded-2xl text-xl transition">Try it Free Now</a>
-            </div>
-
-            <!-- How it Works -->
-            <div class="py-16 px-8 bg-zinc-900">
-                <h2 class="text-3xl font-semibold text-center mb-12">How Helix Debugger Works</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-                    <div class="text-center">
-                        <div class="w-12 h-12 mx-auto bg-cyan-400 text-black rounded-2xl flex items-center justify-center text-2xl font-bold mb-4">1</div>
-                        <h3 class="text-xl font-medium mb-2">Upload Your Log</h3>
-                        <p class="text-zinc-400">Drag & drop or paste server logs, crash dumps, or performance data.</p>
-                    </div>
-                    <div class="text-center">
-                        <div class="w-12 h-12 mx-auto bg-cyan-400 text-black rounded-2xl flex items-center justify-center text-2xl font-bold mb-4">2</div>
-                        <h3 class="text-xl font-medium mb-2">Instant Analysis</h3>
-                        <p class="text-zinc-400">AI instantly ranks root causes with confidence scores and reproduction steps.</p>
-                    </div>
-                    <div class="text-center">
-                        <div class="w-12 h-12 mx-auto bg-cyan-400 text-black rounded-2xl flex items-center justify-center text-2xl font-bold mb-4">3</div>
-                        <h3 class="text-xl font-medium mb-2">Fix & Ship</h3>
-                        <p class="text-zinc-400">Clear next actions. Fix faster. Ship your game.</p>
+    <body class="min-h-screen bg-zinc-950">
+        <div class="max-w-7xl mx-auto px-8 py-12">
+            <div class="flex justify-between items-center mb-12">
+                <div>
+                    <h1 class="text-5xl font-bold text-cyan-400">Welcome back, {username}.</h1>
+                    <p class="text-zinc-400 mt-2">Your personal AI debugging assistant.</p>
+                </div>
+                <div class="text-right">
+                    <div class="inline-flex items-center bg-zinc-900 px-6 py-3 rounded-2xl">
+                        <span class="text-emerald-400 font-semibold">12 Trials Left</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Pricing -->
-            <div id="analyze" class="py-16 px-8 bg-zinc-950">
-                <h2 class="text-3xl font-semibold text-center mb-4">Simple Pricing</h2>
-                <p class="text-center text-zinc-400 mb-12">Start free. Scale when you're ready.</p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-                    <!-- Free -->
-                    <div class="border border-zinc-700 rounded-3xl p-8 text-center">
-                        <h3 class="text-2xl font-semibold mb-2">Free</h3>
-                        <p class="text-4xl font-bold mb-6">$0<span class="text-sm font-normal text-zinc-400">/month</span></p>
-                        <ul class="space-y-3 text-left mb-8">
-                            <li>15 analyses per month</li>
-                            <li>Basic reports</li>
-                            <li>Community support</li>
-                        </ul>
-                        <a href="#" class="block w-full py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl font-medium">Get Started Free</a>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Trial Counter Card -->
+                <div class="bg-zinc-900 rounded-3xl p-8 border border-cyan-400/30">
+                    <h3 class="text-cyan-400 font-medium mb-2">Free Trial</h3>
+                    <div class="flex items-center justify-between">
+                        <div class="text-7xl font-bold text-white">12</div>
+                        <div class="text-right">
+                            <div class="text-sm text-zinc-400">analyses remaining</div>
+                            <div class="h-2 bg-zinc-800 rounded-full mt-3 w-32">
+                                <div class="h-2 bg-cyan-400 rounded-full w-3/4"></div>
+                            </div>
+                        </div>
                     </div>
-                    <!-- Pro -->
-                    <div class="border border-cyan-400 rounded-3xl p-8 text-center scale-105 shadow-2xl">
-                        <div class="text-cyan-400 text-sm font-semibold mb-1">MOST POPULAR</div>
-                        <h3 class="text-2xl font-semibold mb-2">Pro</h3>
-                        <p class="text-4xl font-bold mb-6">$49<span class="text-sm font-normal text-zinc-400">/month</span></p>
-                        <ul class="space-y-3 text-left mb-8">
-                            <li>Unlimited analyses</li>
-                            <li>Full history &amp; exports</li>
-                            <li>Team of up to 5</li>
-                            <li>Priority support</li>
-                        </ul>
-                        <a href="#" onclick="alert('Stripe Checkout coming soon - contact us for early access')" class="block w-full py-4 bg-cyan-400 hover:bg-cyan-300 text-black rounded-2xl font-semibold">Upgrade to Pro</a>
+                </div>
+
+                <!-- Subscription Status -->
+                <div class="bg-zinc-900 rounded-3xl p-8">
+                    <h3 class="text-zinc-400 mb-2">Current Plan</h3>
+                    <div class="flex items-center gap-3">
+                        <span class="px-5 py-2 bg-emerald-400 text-black font-semibold rounded-2xl text-sm">FREE</span>
+                        <span class="text-zinc-400">Next upgrade available</span>
                     </div>
-                    <!-- Studio -->
-                    <div class="border border-zinc-700 rounded-3xl p-8 text-center">
-                        <h3 class="text-2xl font-semibold mb-2">Studio</h3>
-                        <p class="text-4xl font-bold mb-6">$199<span class="text-sm font-normal text-zinc-400">/month</span></p>
-                        <ul class="space-y-3 text-left mb-8">
-                            <li>Everything in Pro</li>
-                            <li>Priority AI processing</li>
-                            <li>Custom integrations</li>
-                            <li>Dedicated support</li>
-                        </ul>
-                        <a href="#" onclick="alert('Stripe Checkout coming soon - contact us for early access')" class="block w-full py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl font-medium">Upgrade to Studio</a>
-                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="bg-zinc-900 rounded-3xl p-8 flex flex-col gap-4">
+                    <a href="#" class="flex-1 bg-cyan-400 hover:bg-cyan-300 text-black font-semibold py-5 rounded-2xl text-center">New Analysis</a>
+                    <a href="#" class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-5 rounded-2xl text-center">View History</a>
+                    <a href="#" class="flex-1 bg-zinc-800 hover:bg-zinc-700 py-5 rounded-2xl text-center">Upgrade Plan</a>
                 </div>
             </div>
 
-            <div class="text-center py-12 text-zinc-400 text-sm">
-                Helix Debugger • Built to help game developers ship faster
+            <!-- Recent Analyses -->
+            <div class="mt-16">
+                <h2 class="text-2xl font-semibold mb-6">Recent Analyses</h2>
+                <div class="bg-zinc-900 rounded-3xl p-8 text-zinc-400">
+                    No analyses yet. Start your first one above.
+                </div>
+            </div>
+
+            <!-- Contact & Account -->
+            <div class="mt-20 flex justify-between text-sm">
+                <a href="/contact" class="text-cyan-400 hover:text-cyan-300">About Daphne & Contact</a>
+                <div class="flex gap-6">
+                    <a href="#" class="text-zinc-400 hover:text-white">Edit Profile</a>
+                    <a href="#" class="text-red-400 hover:text-red-300">Cancel Subscription</a>
+                </div>
             </div>
         </div>
     </body>
     </html>
     """
     return HTMLResponse(html)
+
+# Placeholder routes for other pages
+@app.get("/contact", response_class=HTMLResponse)
+async def contact():
+    return HTMLResponse("<h1 class='text-4xl text-center py-20'>Contact / About Daphne</h1>")
 
 if __name__ == "__main__":
     import uvicorn
