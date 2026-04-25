@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import hashlib
 import sqlite3
 import re
+import os
 
 app = FastAPI()
 
@@ -17,7 +18,7 @@ def init_db():
 
 init_db()
 
-# In-memory sessions (simple for Render free tier)
+# Simple sessions (works on Render free tier)
 sessions = {}
 
 def hash_password(password):
@@ -201,13 +202,12 @@ async def upgrade_page(request: Request):
         <div class="max-w-md mx-auto mt-20 bg-zinc-900 rounded-3xl p-8 text-center">
             <h1 class="text-4xl font-bold text-cyan-400 mb-8">Upgrade Helix Debugger</h1>
             <a href="https://paypal.me/DaphneJaneGarrido/49" target="_blank" 
-               class="block bg-cyan-500 hover:bg-cyan-600 py-6 rounded-3xl text-2xl font-semibold mb-6">Pro — $49/month (Unlimited Analyses)</a>
+               class="block bg-cyan-500 hover:bg-cyan-600 py-6 rounded-3xl text-2xl font-semibold mb-6">Pro — $49/month (Unlimited)</a>
             <a href="https://paypal.me/DaphneJaneGarrido/199" target="_blank" 
                class="block bg-violet-500 hover:bg-violet-600 py-6 rounded-3xl text-2xl font-semibold">Studio — $199/month (Team + Priority)</a>
         </div>
     </body></html>
     """
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Important: No if __name__ == "__main__" block needed on Render
+# Render runs the app using the Start Command you set
